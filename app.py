@@ -10,7 +10,12 @@ import torch
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 from llm_reasonings import ClinicalReasoningEngine
 
+from huggingface_hub import hf_hub_download, snapshot_download
+from hf_upload import LOCAL_MODEL_PATH, HF_REPO_ID
 
+
+
+ENCODERS_FILENAME="label_encoders.json"
 #app initialization and model loading
 class ModelLoader:
     def __init__(self):
@@ -18,9 +23,25 @@ class ModelLoader:
         self.tokenizer = None
         self.model = None
         self.reasoning_engine = None
+        self.label_encoders = None
     
     def load(self):
         print("...Loading model....")
+        
+        try:
+            local_cache_path = snapshot_download(
+                repo_id=HF_REPO_ID,
+                allow_patterns=[f"{LOCAL_MODEL_PATH}/*"]
+            )
+
+            MODEL_DIR =os.path.join(local_cache_path, LOCAL_MODEL_PATH)
+            print(f"success. model downloaded: {MODEL_DIR}")
+        except Exception as e:
+            print(f"Error downloading model from Hugging Face Hub: {e}")
+            raise e
+        
+        
+        
         self.tokenizer = AutoTokenizer.from_pretrained('./clinical_trial_model')
         self.model = AutoModelForSequenceClassification.from_pretrained('./clinical_trial_model')
         self.model.to(self.device)
