@@ -4,19 +4,15 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+LOCAL_MODEL_PATH = "clinical_trial_model"
+HF_REPO_ID = os.getenv("HF_REPO")
 
-LOCAL_MODEL_PATH = ""  
-HF_REPO_ID =os.getenv("HF_REPO")
-
-print(f"working")
-api = HfApi()
-
-print(f"Uploading folder '{LOCAL_MODEL_PATH}' ")
-
-api.upload_folder(
-    folder_path=LOCAL_MODEL_PATH,
-    repo_id=HF_REPO_ID,
-    commit_message="Initial upload "
-)
-
-print(f"upload successful")
+if __name__ == "__main__":
+    api = HfApi()
+    print(f"Uploading '{LOCAL_MODEL_PATH}' to {HF_REPO_ID}")
+    api.upload_folder(
+        folder_path=LOCAL_MODEL_PATH,
+        repo_id=HF_REPO_ID,
+        commit_message="Initial upload"
+    )
+    print("Upload successful")

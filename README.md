@@ -1,128 +1,114 @@
 # Clinical Trial Eligibility Classifier
 
-**An end-to-end ML/NLP system for predicting clinical trial eligibility using fine-tuned transformers and LLM-enhanced reasoning.**
+An end-to-end ML/NLP pipeline for predicting oncology clinical trial eligibility using a fine-tuned DistilBERT model and a rule-based reasoning engine. Served via FastAPI and deployed on Render.
 
-**NOTE: THIS PROJECT WILL BE UPDATED TO A FULLSTACK PROJECT**
+> **Note:** This project will be extended into a fullstack application.
 
-##  Project Overview
+---
 
-This project demonstrates a production-ready pipeline for automating clinical trial patient screening. It combines:
+## Overview
 
-- **Fine-tuned transformer models** (DistilBERT) for binary classification
-- **Structured + unstructured data** (demographics, labs, clinical notes)
-- **LLM-enhanced reasoning** for interpretable decisions
-- **REST API** for real-time inference
-- **Synthetic but realistic** oncology dataset
+Automates patient screening for clinical trials by combining structured data (demographics, labs) with unstructured clinical notes. Uses a two-tier decision pipeline: a rule engine handles hard exclusion criteria, and a fine-tuned DistilBERT model evaluates text-based criteria.
 
-##  Dataset
+**Stack:** Python · DistilBERT (HuggingFace Transformers) · FastAPI · scikit-learn · Render · Hugging Face Hub
 
-- **500 synthetic patient records** with:
-  - Demographics (age, cancer type, stage)
-  - Lab values (hemoglobin, creatinine, neutrophils, platelets)
-  - Performance status (ECOG score)
-  - Biomarkers (HER2, ER, PD-L1, EGFR)
-  - Clinical notes (unstructured text)
-  
-- **Eligibility criteria** based on real oncology trials:
-  - Age: 18-75 years
-  - Stage: I-III (Stage IV excluded)
-  - ECOG: 0-2
-  - Lab thresholds for safety
+---
 
-##  Architecture
+## Architecture
 
 ```
-Patient Data → Feature Engineering → Transformer Model → Prediction
-                                           ↓
-                                    LLM Reasoning → Interpretable Output
+Rule Engine (hard criteria: age, stage, ECOG, labs)
+    │
+    ├─ FAIL → ineligible  (decision_source: "rule_engine")
+    │
+    └─ PASS → DistilBERT model (text-based criteria in clinical notes)
+                  │
+                  └─ eligible / ineligible  (decision_source: "model")
 ```
 
+The rule engine cannot override the model for text-based criteria, and the model cannot override the rule engine for hard exclusions. Every response includes a `decision_source` field.
 
-### 1. Installation
+---
+
+## Dataset
+
+500 synthetic oncology patient records with:
+
+- Demographics: age, cancer type, stage
+- Lab values: hemoglobin, creatinine, neutrophils, platelets
+- Performance status: ECOG score
+- Biomarkers: HER2, ER, PD-L1, EGFR
+- Clinical notes: unstructured text
+
+**Eligibility criteria** (based on real oncology trials):
+
+| Criterion | Threshold |
+|-----------|-----------|
+| Age | 18–75 years |
+| Stage | I–III (Stage IV excluded) |
+| ECOG | 0–2 |
+| Hemoglobin | ≥ 9.0 g/dL |
+| Creatinine | ≤ 2.0 mg/dL |
+| Neutrophils | ≥ 1.5 × 10⁹/L |
+
+Three additional exclusion criteria (`prior_platinum_therapy`, `active_cardiac_disease`, `organ_transplant`) exist **only** in clinical notes — invisible to the rule engine. This is the model's genuine learning task.
+
+---
+
+## Pipeline
+
+Run scripts in order:
 
 ```bash
-# Clone or create project directory
-mkdir clinical-trial-classifier
-cd clinical-trial-classifier
+python synthetic_data.py       # Generate clinical_trial_data.csv (500 patients)
+python data_preprocess.py      # Produce train/val/test_data.csv + label_encoders.json
+python model.py                # Fine-tune DistilBERT → ./clinical_trial_model/
+python model_evaluate.py       # Evaluate on test set
+python llm_reasonings.py       # Demo rule-based reasoning on test_data.csv
+python app.py                  # Start FastAPI server on :8000
+python api_testing.py          # Hit the running API with test payloads
+```
 
-# Create virtual environment
+---
+
+## Setup
+
+```bash
+git clone <repo-url>
+cd clinical-eligibility-classifier
+
 python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+source venv/bin/activate       # Windows: venv\Scripts\activate
 
-# Install dependencies
 pip install -r requirements.txt
 ```
 
-### 2. Generate Data
+Create a `.env` file:
 
-```bash
-python generate_synthetic_data.py
+```
+HF_REPO=hellomelo/clinical_eligibility_classifier
 ```
 
-Output: `clinical_trial_data.csv` (500 patients)
+---
 
-### 3. Preprocess Data
+## API
 
-```bash
-python data_preprocess.py
-```
-
-Output: `train_data.csv`, `val_data.csv`, `test_data.csv`
-
-### 4. Train Model
-
-```bash
-python train_model.py
-```
-
-Training takes ~5-10 minutes on CPU, ~2 minutes on GPU.
-
-Output: `./clinical_trial_model/` directory
-
-### 5. Evaluate Model
-
-```bash
-python model_evaluate.py
-```
-
-Shows classification report, confusion matrix, and sample predictions.
-
-### 6. Test LLM Reasoning
-
-```bash
-python llm_reasonings.py
-```
-
-Demonstrates interpretable eligibility explanations.
-
-### 7. Start API Server
+Start the server:
 
 ```bash
 python app.py
+# or (production)
+uvicorn app:app --host 0.0.0.0 --port $PORT
 ```
 
-Server runs on `http://localhost:8000`
+Interactive docs at `http://localhost:8000/docs`.
 
-### 8. Test API
+### Endpoints
 
-In a new terminal:
+**`GET /health`**
 
-```bash
-python api_testing.py
-```
-
-##  API Endpoints
-
-### Health Check
-```bash
-GET /health
-```
-
-### Single Patient Prediction
-```bash
-POST /predict
-Content-Type: application/json
-
+**`POST /predict`**
+```json
 {
   "patient_id": "PT001",
   "age": 55,
@@ -138,82 +124,61 @@ Content-Type: application/json
 }
 ```
 
-### Batch Prediction
-```bash
-POST /predict/batch
-Content-Type: application/json
-
-{
-  "patients": [...]
-}
+**`POST /predict/batch`**
+```json
+{ "patients": [...] }
 ```
+
+---
 
 ## Model Performance
 
-Expected metrics on test set:
+Approximate metrics on the test set:
 
-- **Accuracy**: ~85-90%
-- **F1 Score**: ~0.85-0.90
-- **AUC-ROC**: ~0.90-0.95
+| Metric | Score |
+|--------|-------|
+| Accuracy | ~85–90% |
+| F1 Score | ~0.85–0.90 |
+| AUC-ROC | ~0.90–0.95 |
 
-*Note: Performance varies based on synthetic data generation seed*
+*Varies based on synthetic data generation seed.*
 
-## Key Features
-
-### 1. **Transformer Fine-tuning**
-- Uses DistilBERT (lightweight, fast)
-- Custom tokenization of clinical text
-- Binary classification with softmax probabilities
-
-### 2. **Multi-modal Input**
-- Combines structured (age, labs) and unstructured (notes) data
-- Feature engineering creates rich input representation
-
-### 3. **LLM Reasoning**
-- Rule-based reasoning engine (can be replaced with GPT/Claude)
-- Provides criterion-by-criterion analysis
-- Explains why patients are eligible/ineligible
-
-### 4. **Production-Ready API**
-- FastAPI with automatic documentation
-- Batch processing support
-- Error handling and validation
-- Health check endpoints
+---
 
 ## Project Structure
 
 ```
-root/
-├── synthetic_data.py            # Dataset creation
-├── data_preprocess.py           # Feature engineering
-├── model.py                     # Model training
-├── model_evaluate.py            # Evaluation & inference
-├── llm_reasonings.py            # Interpretable reasoning
-├── app.py                       # FastAPI server
-├── api_testing.py               # API testing
-├── requirements.txt             # Dependencies
-├── clinical_trial_data.csv      # Generated dataset
-├── train_data.csv               # Training split / will be created after running scripts
-├── val_data.csv                 # Validation split / will be created after running scripts
-├── test_data.csv                # Test split /  will be created after running scripts
-├── label_encoders.json          # Categorical encoders / will be created after running scripts
-└── clinical_trial_model/        # Trained model /will be created after running scripts
+├── synthetic_data.py        # Synthetic patient data generation
+├── data_preprocess.py       # Feature engineering & train/val/test splits
+├── model.py                 # DistilBERT fine-tuning
+├── model_evaluate.py        # Evaluation & inference
+├── llm_reasonings.py        # Rule-based reasoning engine
+├── app.py                   # FastAPI server
+├── hf_upload.py             # Upload model to Hugging Face Hub
+├── api_testing.py           # API test payloads
+├── requirements.txt
+├── render.yaml              # Render deployment config
+└── clinical_trial_model/    # Trained model (also on HF Hub)
 ```
+
+---
+
+## Deployment
+
+Deployed on **Render** (see `render.yaml`). At startup, `app.py` downloads the model from Hugging Face Hub via `snapshot_download`.
+
+Set `HF_REPO` as an environment variable in the Render dashboard.
+
+---
 
 ## Potential Extensions
 
-1. **Real LLM Integration**: Replace rule-based reasoning with GPT-4/Claude API
-2. **Multi-trial Matching**: Extend to match patients with multiple trials
-3. **Document Processing**: Add PDF parsing for actual trial protocols
-4. **Active Learning**: Flag uncertain cases for human review
-5. **Explainability**: Add SHAP/LIME for model interpretability
-6. **Deployment**: Containerize with Docker, deploy to cloud
+- Replace the rule-based reasoning engine with a real LLM (GPT-4 / Claude)
+- Multi-trial matching: rank patients across multiple open trials
+- PDF parsing for actual trial protocol documents
+- Active learning: flag low-confidence cases for human review
+- SHAP/LIME explainability on top of the model predictions
 
-
-## Acknowledgments
-
-- Inspired by real clinical trial matching systems
-- Uses synthetic data to protect patient privacy
-- Built with open-source tools (Hugging Face, FastAPI, scikit-learn, pytorch)
 ---
-**Note**: This is a demonstration project with synthetic data. Real clinical trial matching requires IRB approval, HIPAA compliance, and integration with EHR systems.
+
+> **Disclaimer:** This is a demonstration project using synthetic data. Real clinical trial matching requires IRB approval, HIPAA compliance, and EHR integration.

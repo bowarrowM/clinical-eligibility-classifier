@@ -42,7 +42,7 @@ class EligibilityPredictor:
             'probability_eligible': probs[0][1].item(),
             'probability_ineligible': probs[0][0].item()
         }
-    print(" control log1")
+
     def predict_batch(self, texts):
         results = []
         for text in texts:
@@ -57,12 +57,12 @@ def evaluate_test_set():
     predictor = EligibilityPredictor()
     
     predictions = []
-    probabilities = []
-    
+    confidences = []
+
     for text in test_df['combined_text']:
         result = predictor.predict(text)
         predictions.append(1 if result['eligible'] else 0)
-        probabilities.append(result['probability_eligible'])
+        confidences.append(result['confidence'])
     
     # Evaluation metrics
     print("\n" + "="*60)
@@ -91,16 +91,16 @@ def evaluate_test_set():
     for idx in sample_indices:
         row = test_df.iloc[idx]
         pred = predictions[idx]
-        prob = probabilities[idx]
-        
+        conf = confidences[idx]
+
         print(f"\nPatient: {row['patient_id']}")
         print(f"Age: {row['age']}, Cancer: {row['cancer_type']} {row['stage']}")
         print(f"ECOG: {row['ecog_score']}, Biomarker: {row['biomarker']}")
         print(f"Actual: {'Eligible' if row['eligible'] else 'Ineligible'}")
-        print(f"Predicted: {'Eligible' if pred else 'Ineligible'} (confidence: {prob:.2%})")
+        print(f"Predicted: {'Eligible' if pred else 'Ineligible'} (confidence: {conf:.2%})")
         print(f"Match: {'MATCH' if row['eligible'] == pred else ' MISMATCH'}")
-    
-    return predictor, predictions, probabilities
+
+    return predictor, predictions, confidences
 
 if __name__ == "__main__":
     predictor, predictions, probabilities = evaluate_test_set()

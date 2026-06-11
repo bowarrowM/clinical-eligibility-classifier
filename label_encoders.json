@@ -1,0 +1,1 @@
+{"cancer_type": ["Breast", "Colon", "Lung", "Melanoma", "Prostate"], "stage": ["I", "II", "III", "IV"], "biomarker": ["EGFR+", "EGFR-", "ER+", "ER-", "HER2+", "HER2-", "PD-L1+", "PD-L1-"]}

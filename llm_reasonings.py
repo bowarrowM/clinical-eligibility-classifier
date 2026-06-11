@@ -1,12 +1,16 @@
 """
-LLM-Enhanced Reasoning for Clinical Trial Eligibility. This script demonstrates how to add interpretable reasoning to predictions.
+Rule-based engine for hard quantitative exclusion criteria (age, stage, ECOG, labs).
+It forms Tier 1 of a two-tier decision pipeline: patients who fail here are ineligible
+regardless of model output. Patients who pass are forwarded to the DistilBERT model,
+which evaluates text-based criteria found only in clinical notes (prior treatments,
+comorbidities, contraindications).
 
-For a real trial implementation -> an actual LLM API lik OpenAI(chatgbt's), Anthropic (claude's) etc
-this one simulates similar logic with rule-based reasoning.
+For a real implementation, replace this engine with an actual LLM API
+(OpenAI, Anthropic, etc.) to generate richer natural-language rationale.
 """
 
 class ClinicalReasoningEngine:
-    """script here provides interpretable reasoning for eligibility decisions"""
+    """Evaluates structured/quantitative eligibility criteria only."""
     
     def __init__(self):
         self.criteria = {
@@ -137,7 +141,7 @@ Eligibility Assessment:
                 reasoning += f"  • {reason}\n"
         
         reasoning += f"\n{'='*50}\n"
-        reasoning += f"FINAL DECISION: {'ELIGIBLE' if decision else 'INELIGIBLE'}\n"
+        reasoning += f"STRUCTURED CRITERIA: {'PASSED' if decision else 'FAILED'}\n"
         reasoning += f"{'='*50}\n"
         
         return reasoning

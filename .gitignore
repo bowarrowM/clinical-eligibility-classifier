@@ -2,6 +2,9 @@
 *.h5
 *.pt
 *.pkl
+*.safetensors
+clinical_trial_model/
+clinical_trial_model_500e/
 
 # Data files (keep model, exclude data)
 *.json
@@ -21,6 +24,8 @@ env/
 ENV/
 .env
 
+
+CLAUDE.md
 
 # IDE
 .vscode/

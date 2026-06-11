@@ -42,8 +42,8 @@ class ModelLoader:
         
         
         
-        self.tokenizer = AutoTokenizer.from_pretrained('./clinical_trial_model')
-        self.model = AutoModelForSequenceClassification.from_pretrained('./clinical_trial_model')
+        self.tokenizer = AutoTokenizer.from_pretrained(MODEL_DIR)
+        self.model = AutoModelForSequenceClassification.from_pretrained(MODEL_DIR)
         self.model.to(self.device)
         self.model.eval()
         self.reasoning_engine = ClinicalReasoningEngine()
@@ -101,6 +101,7 @@ class EligibilityResponse(BaseModel):
     confidence: float
     probability_eligible: float
     probability_ineligible: float
+    decision_source: str  # "rule_engine" | "model"
     reasoning: Optional[dict] = None
 
 class BatchRequest(BaseModel):
@@ -159,24 +160,37 @@ async def root():
 
 @app.post("/predict", response_model=EligibilityResponse)
 async def predict(patient: PatientData):
-    """
-    Predicting eligibility for: single patient
-    """
     try:
+        # Tier 1: rule engine enforces hard quantitative exclusion criteria
+        reasoning = model_loader.reasoning_engine.analyze_patient(patient.dict())
+
+        if not reasoning['eligible']:
+            # Hard criteria failed — model cannot override these
+            return EligibilityResponse(
+                patient_id=patient.patient_id,
+                eligible=False,
+                confidence=1.0,
+                probability_eligible=0.0,
+                probability_ineligible=1.0,
+                decision_source="rule_engine",
+                reasoning=reasoning
+            )
+
+        # Tier 2: hard criteria passed — model assesses text-based criteria
+        # (prior treatments, comorbidities, contraindications in clinical notes)
         text = create_combined_text(patient)
         prediction = predict_eligibility(text)
 
-        reasoning = model_loader.reasoning_engine.analyze_patient(patient.dict())
-        
         return EligibilityResponse(
             patient_id=patient.patient_id,
             eligible=prediction['eligible'],
             confidence=prediction['confidence'],
             probability_eligible=prediction['probability_eligible'],
             probability_ineligible=prediction['probability_ineligible'],
+            decision_source="model",
             reasoning=reasoning
         )
-    
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -189,15 +203,28 @@ async def predict_batch(request: BatchRequest):
         results = []
         
         for patient in request.patients:
+            reasoning = model_loader.reasoning_engine.analyze_patient(patient.model_dump())
+
+            if not reasoning['eligible']:
+                results.append({
+                    "patient_id": patient.patient_id,
+                    "eligible": False,
+                    "confidence": 1.0,
+                    "probability_eligible": 0.0,
+                    "decision_source": "rule_engine",
+                    "reasoning": reasoning
+                })
+                continue
+
             text = create_combined_text(patient)
             prediction = predict_eligibility(text)
-            reasoning = model_loader.reasoning_engine.analyze_patient(patient.model_dump())
-            
+
             results.append({
                 "patient_id": patient.patient_id,
                 "eligible": prediction['eligible'],
                 "confidence": prediction['confidence'],
                 "probability_eligible": prediction['probability_eligible'],
+                "decision_source": "model",
                 "reasoning": reasoning
             })
         
@@ -212,7 +239,7 @@ async def health_check():
         "status": "healthy",
         "model_loaded": model_loader.model is not None,
         "device": str(model_loader.device),
-        "model_type": "DistilBERT",
+        "model_type": "Bio_ClinicalBERT",
         "version": "1.0.0"
     }
 

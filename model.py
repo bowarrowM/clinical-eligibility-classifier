@@ -64,8 +64,7 @@ def train_model():
     train_df = pd.read_csv('train_data.csv')
     val_df = pd.read_csv('val_data.csv')
     
-    # clinical BERT model or distilbert for speed
-    model_name = 'distilbert-base-uncased'
+    model_name = 'emilyalsentzer/Bio_ClinicalBERT'
     print(f"Loading model {model_name}")
     
     tokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -95,9 +94,8 @@ def train_model():
         per_device_eval_batch_size=8,
         warmup_steps=100,
         weight_decay=0.01,
-        logging_dir='./logs',
         logging_steps=10,
-        evaluation_strategy="epoch",
+        eval_strategy="epoch",
         save_strategy="epoch",
         load_best_model_at_end=True,
         metric_for_best_model='f1',

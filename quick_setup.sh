@@ -4,7 +4,7 @@ echo " one command setup ver timeline "
 echo "============================================================"
 
 echo ""
-echo "📊 Step 1/5: Generate synthetic dataset"
+echo "Step 1/5: Generate synthetic dataset"
 python synthetic_data.py
 
 echo ""
